@@ -1,5 +1,9 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
+export const config = {
+  runtime: 'edge',
+};
+
 export default async function handler(req: Request) {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
