@@ -32,3 +32,6 @@ dist-ssr
 
 # Vite
 *.nosync
+
+.gemini/
+gha-creds-*.json

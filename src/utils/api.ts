@@ -45,6 +45,7 @@ export const getIngredients = (recipe: Recipe): { name: string; measure: string 
 };
 
 export const formatInstructions = (instructions: string): string[] => {
+  if (!instructions) return [];
   return instructions
     .split(/\r?\n|\.\s+/)
     .map(step => step.trim())

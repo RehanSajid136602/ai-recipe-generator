@@ -10,7 +10,7 @@ import {
   UserCircleIcon
 } from '@heroicons/react/24/outline';
 import { Recipe, Ingredient, UserProfile } from './types';
-import { fetchRecipesByName, fetchRandomRecipe, fetchCategories, fetchRecipesByCategory } from './utils/api';
+import { fetchRecipesByName, fetchRandomRecipe, fetchCategories, fetchRecipesByCategory, fetchRecipeById } from './utils/api';
 import { ThemeToggle } from './components/ThemeToggle';
 import { RecipeCard } from './components/RecipeCard';
 import { SkeletonCard } from './components/SkeletonCard';
@@ -79,6 +79,25 @@ function App() {
       setRecipes(results);
     }
     setLoading(false);
+  };
+
+  const handleRecipeClick = async (recipe: Recipe) => {
+    if (recipe.strInstructions) {
+      setSelectedRecipe(recipe);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const fullRecipe = await fetchRecipeById(recipe.idMeal);
+      if (fullRecipe) {
+        setSelectedRecipe(fullRecipe);
+      }
+    } catch (error) {
+      console.error("Failed to fetch recipe details:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleFavorite = (recipe: Recipe) => {
@@ -350,7 +369,7 @@ function App() {
                 <RecipeCard
                   key={recipe.idMeal}
                   recipe={recipe}
-                  onClick={() => setSelectedRecipe(recipe)}
+                  onClick={() => handleRecipeClick(recipe)}
                   isFavorite={!!favorites.find(r => r.idMeal === recipe.idMeal)}
                   onToggleFavorite={(e) => {
                     e.stopPropagation();
