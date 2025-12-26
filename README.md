@@ -44,7 +44,7 @@ A visually stunning, modern, and appetizing React application built with Vite, T
 
 3. Create a `.env` file in the root directory and add your Gemini API Key:
    ```bash
-   VITE_GEMINI_API_KEY=your_api_key_here
+   GEMINI_API_KEY=your_api_key_here
    ```
 
 4. Start the development server:
@@ -54,5 +54,5 @@ A visually stunning, modern, and appetizing React application built with Vite, T
 
 ## Deployment
 
-The project is ready to be deployed on Vercel or Netlify. Simply connect your repository and add the `VITE_GEMINI_API_KEY` environment variable in the dashboard.
+The project is ready to be deployed on Vercel. Simply connect your repository and add the `GEMINI_API_KEY` environment variable in the dashboard. This ensures your API key is kept secure on the server and not exposed in the client-side code.
 "# ai-recipe-generator" 
