@@ -397,7 +397,7 @@ function App() {
             AI <span className="text-primary-light">Recipe</span>
           </h1>
         </div>
-        <p className="text-slate-500 text-sm">© 2025 AI Recipe Generator & Meal Planner. Powered by TheMealDB & Google Gemini.</p>
+        <p className="text-slate-500 text-sm">© 2025 AI Recipe Generator & Meal Planner. Developed by Rehan. Powered by TheMealDB.</p>
       </footer>
 
       <RecipeModal
