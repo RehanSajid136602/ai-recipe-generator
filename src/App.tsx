@@ -15,7 +15,9 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { RecipeCard } from './components/RecipeCard';
 import { SkeletonCard } from './components/SkeletonCard';
 import { RecipeModal } from './components/RecipeModal';
+import { RecipeGenerator } from './components/RecipeGenerator';
 import { useLocalStorage } from './hooks/useLocalStorage';
+
 
 function App() {
   const [search, setSearch] = useState('');
@@ -30,21 +32,39 @@ function App() {
     name: 'Rehan',
     email: 'sajidnadeem2020@gmail.com'
   });
-  const [view, setView] = useState<'discover' | 'favorites' | 'shopping' | 'profile'>('discover');
+  const [view, setView] = useState<'discover' | 'favorites' | 'shopping' | 'profile' | 'generator'>('discover');
+
 
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      const [cats, initialRecipes] = await Promise.all([
-        fetchCategories(),
-        fetchRecipesByName('')
-      ]);
-      setCategories(cats);
-      setRecipes(initialRecipes);
-      setLoading(false);
+      
+      // 1. Try to load categories from cache first
+      const cachedCats = localStorage.getItem('categories-cache');
+      if (cachedCats) {
+        setCategories(JSON.parse(cachedCats));
+      }
+
+      try {
+        // 2. Fetch categories and initial recipes in parallel
+        // We fetch 'Chicken' category initially as it's much faster than searching ''
+        const [cats, initialRecipes] = await Promise.all([
+          fetchCategories(),
+          fetchRecipesByCategory('Chicken') 
+        ]);
+
+        setCategories(cats);
+        localStorage.setItem('categories-cache', JSON.stringify(cats));
+        setRecipes(initialRecipes);
+      } catch (error) {
+        console.error("Initialization failed:", error);
+      } finally {
+        setLoading(false);
+      }
     };
     init();
   }, []);
+
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,18 +88,23 @@ function App() {
   };
 
   const handleCategoryClick = async (cat: string) => {
+    if (cat === selectedCategory) return;
     setLoading(true);
     setSelectedCategory(cat);
     setView('discover');
-    if (cat === 'All') {
-      const results = await fetchRecipesByName('');
+    
+    try {
+      const results = cat === 'All' 
+        ? await fetchRecipesByName('') 
+        : await fetchRecipesByCategory(cat);
       setRecipes(results);
-    } else {
-      const results = await fetchRecipesByCategory(cat);
-      setRecipes(results);
+    } catch (error) {
+      console.error("Category fetch failed:", error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
+
 
   const handleRecipeClick = async (recipe: Recipe) => {
     if (recipe.strInstructions) {
@@ -142,8 +167,10 @@ function App() {
 
           <nav className="hidden md:flex items-center gap-8 font-semibold text-sm">
                         {[
-                          { id: 'discover', label: 'Discover', icon: MagnifyingGlassIcon },
-                          { id: 'favorites', label: 'Favorites', icon: HeartIcon },
+          { id: 'discover', label: 'Discover', icon: MagnifyingGlassIcon },
+          { id: 'generator', label: 'AI Magic', icon: SparklesIcon },
+          { id: 'favorites', label: 'Favorites', icon: HeartIcon },
+
                           { id: 'shopping', label: 'Shopping', icon: ShoppingBagIcon },
                           { id: 'profile', label: 'Profile', icon: UserCircleIcon },
                         ].map((item) => (
@@ -225,6 +252,18 @@ function App() {
               </div>
             </motion.div>
           )}
+
+          {view === 'generator' && (
+            <motion.div
+              key="generator-view"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <RecipeGenerator />
+            </motion.div>
+          )}
+
 
           {view === 'favorites' && (
             <motion.div
@@ -360,8 +399,9 @@ function App() {
           )}
         </AnimatePresence>
 
-        {view !== 'shopping' && view !== 'profile' && (
+        {view !== 'shopping' && view !== 'profile' && view !== 'generator' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+
             {loading ? (
               Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
             ) : filteredRecipes.length > 0 ? (

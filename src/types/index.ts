@@ -21,7 +21,10 @@ export interface AIPromptResponse {
   ingredients: string[];
   instructions: string[];
   tips?: string[];
+  time?: string;
+  difficulty?: string;
 }
+
 
 export interface UserProfile {
   name: string;

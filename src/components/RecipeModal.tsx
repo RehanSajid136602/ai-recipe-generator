@@ -1,10 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { XMarkIcon, ClockIcon, FireIcon, ShoppingCartIcon, ClipboardIcon, SparklesIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { Recipe, Ingredient, AIPromptResponse } from '../types';
-import { getIngredients, formatInstructions } from '../utils/api';
-import { useState, useRef } from 'react';
-import { generateRecipeVariation } from '../utils/gemini';
+import { getIngredients, formatInstructions, estimateRecipeStats, optimizeImage } from '../utils/api';
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { generateRecipeVariation, analyzeRecipeStats } from '../utils/gemini';
 import html2canvas from 'html2canvas';
+
 import jsPDF from 'jspdf';
 
 interface RecipeModalProps {
@@ -22,9 +23,28 @@ export const RecipeModal = ({ recipe, onClose, onAddIngredientsToShoppingList }:
   const [isDownloading, setIsDownloading] = useState(false);
   const modalContentRef = useRef<HTMLDivElement>(null);
 
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [aiStats, setAiStats] = useState<{ time: number; calories: number } | null>(null);
+
+  const ingredients = useMemo(() => recipe ? getIngredients(recipe) : [], [recipe?.idMeal]);
+  const baseStats = useMemo(() => recipe ? estimateRecipeStats(recipe) : { time: 0, calories: 0 }, [recipe?.idMeal]);
+  const stats = aiStats || baseStats;
+
+  useEffect(() => {
+    if (recipe) {
+      setAiStats(null); // Reset for new recipe
+      const fetchAiStats = async () => {
+        const ingredientsList = getIngredients(recipe).map(i => `${i.measure} ${i.name}`).join(', ');
+        const result = await analyzeRecipeStats(recipe.strMeal, ingredientsList, recipe.strInstructions);
+        if (result) setAiStats(result);
+      };
+      fetchAiStats();
+    }
+  }, [recipe?.idMeal]);
+
   if (!recipe) return null;
 
-  const ingredients = getIngredients(recipe);
+
 
   const toggleIngredient = (name: string) => {
     setCheckedIngredients(prev => ({ ...prev, [name]: !prev[name] }));
@@ -64,106 +84,82 @@ export const RecipeModal = ({ recipe, onClose, onAddIngredientsToShoppingList }:
       // Construct the HTML for the PDF
       const instructionsHTML = formatInstructions(recipe.strInstructions)
         .map((step, idx) => `
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; page-break-inside: avoid;">
-            <tr>
-              <td style="width: 36px; vertical-align: top; padding-top: 4px;">
-                <div style="width: 32px; height: 32px; background-color: #f97316; border-radius: 10px; display: table; margin: 0 auto;">
-                  <span style="display: table-cell; vertical-align: middle; text-align: center; color: white; font-family: Helvetica, Arial, sans-serif; font-weight: 800; font-size: 15px;">
-                    ${idx + 1}
-                  </span>
-                </div>
-              </td>
-              <td style="padding-left: 18px; vertical-align: top;">
-                <div style="font-family: Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.65; color: #1e293b; text-align: justify;">
-                  ${step}
-                </div>
-              </td>
-            </tr>
-          </table>
+          <div style="margin-bottom: 20px; display: flex; page-break-inside: avoid; align-items: flex-start;">
+            <div style="flex-shrink: 0; width: 30px; height: 30px; background-color: #f97316; border-radius: 8px; color: white; display: flex; align-items: center; justify-content: center; font-family: 'Poppins', Helvetica, sans-serif; font-weight: 800; font-size: 14px; margin-right: 15px;">
+              ${idx + 1}
+            </div>
+            <div style="font-family: 'Inter', Helvetica, sans-serif; font-size: 15px; line-height: 1.6; color: #334155; flex: 1; padding-top: 4px;">
+              ${step}
+            </div>
+          </div>
         `).join('');
 
       const ingredientsHTML = ingredients
         .map(ing => `
-          <div style="margin-bottom: 12px; font-size: 16px; font-family: Helvetica, Arial, sans-serif; color: #475569; display: flex; align-items: baseline;">
-            <span style="color: #f97316; margin-right: 10px; font-size: 18px;">•</span>
-            <span><b style="color: #0f172a; font-weight: 700;">${ing.measure}</b> ${ing.name}</span>
+          <div style="margin-bottom: 10px; font-size: 14px; font-family: 'Inter', Helvetica, sans-serif; color: #475569; display: flex; align-items: center;">
+            <div style="width: 6px; height: 6px; background-color: #f97316; border-radius: 50%; margin-right: 10px;"></div>
+            <span><b style="color: #0f172a;">${ing.measure}</b> ${ing.name}</span>
           </div>
         `).join('');
 
       let aiHTML = '';
       if (includeAIInPDF && aiResponse) {
         aiHTML = `
-          <div style="margin-top: 45px; padding: 35px; background-color: #fffaf0; border: 2px solid #ffedd5; border-radius: 30px; page-break-inside: avoid;">
-            <div style="display: flex; align-items: center; margin-bottom: 25px;">
-              <div style="width: 12px; height: 30px; background-color: #f97316; border-radius: 4px; margin-right: 15px;"></div>
-              <h2 style="color: #9a3412; font-family: Helvetica, Arial, sans-serif; margin: 0; font-size: 28px; font-weight: 800;">${aiResponse.title}</h2>
+          <div style="margin-top: 40px; padding: 30px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 24px; page-break-inside: avoid;">
+            <div style="display: flex; align-items: center; margin-bottom: 20px;">
+              <div style="width: 4px; height: 24px; background-color: #f97316; border-radius: 2px; margin-right: 12px;"></div>
+              <h2 style="color: #0f172a; font-family: 'Poppins', Helvetica, sans-serif; margin: 0; font-size: 22px; font-weight: 800;">AI Chef Variation: ${aiResponse.title}</h2>
             </div>
             
-            <div style="margin-bottom: 30px;">
-              <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 15px; color: #c2410c; font-family: Helvetica, Arial, sans-serif; text-transform: uppercase; letter-spacing: 1px;">Updated Ingredients</h3>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                ${aiResponse.ingredients.map(i => `<div style="font-size: 14px; color: #475569; font-family: Helvetica, Arial, sans-serif;">- ${i}</div>`).join('')}
+            <div style="margin-bottom: 25px;">
+              <h3 style="font-size: 14px; font-weight: 800; margin-bottom: 12px; color: #f97316; font-family: 'Poppins', Helvetica, sans-serif; text-transform: uppercase; letter-spacing: 0.5px;">Revised Ingredients</h3>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                ${aiResponse.ingredients.map(i => `<div style="font-size: 13px; color: #64748b; font-family: 'Inter', Helvetica, sans-serif;">• ${i}</div>`).join('')}
               </div>
             </div>
 
-            <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 18px; color: #c2410c; font-family: Helvetica, Arial, sans-serif; text-transform: uppercase; letter-spacing: 1px;">Chef's Variation Steps</h3>
+            <h3 style="font-size: 14px; font-weight: 800; margin-bottom: 15px; color: #f97316; font-family: 'Poppins', Helvetica, sans-serif; text-transform: uppercase; letter-spacing: 0.5px;">Chef's Steps</h3>
             ${aiResponse.instructions.map((s, i) => `
-              <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
-                <tr>
-                  <td style="width: 30px; vertical-align: top;">
-                    <div style="width: 26px; height: 26px; background-color: #fb923c; border-radius: 6px; display: table;">
-                      <span style="display: table-cell; vertical-align: middle; text-align: center; color: white; font-family: Helvetica, Arial, sans-serif; font-weight: 700; font-size: 13px;">
-                        ${i + 1}
-                      </span>
-                    </div>
-                  </td>
-                  <td style="padding-left: 14px; vertical-align: top;">
-                    <div style="font-size: 15px; line-height: 1.6; color: #475569; font-family: Helvetica, Arial, sans-serif;">
-                      ${s}
-                    </div>
-                  </td>
-                </tr>
-              </table>
+              <div style="margin-bottom: 12px; display: flex; align-items: flex-start;">
+                <span style="font-size: 13px; font-weight: 800; color: #f97316; margin-right: 10px;">${i + 1}.</span>
+                <div style="font-size: 13px; line-height: 1.5; color: #475569; font-family: 'Inter', Helvetica, sans-serif;">${s}</div>
+              </div>
             `).join('')}
           </div>
         `;
       }
 
       printContainer.innerHTML = `
-        <div style="background-color: white; color: #0f172a; padding: 10px;">
-          <div style="width: 100%; height: 420px; margin-bottom: 40px; border-radius: 32px; overflow: hidden; background: url('${recipe.strMealThumb}') center/cover no-repeat; box-shadow: 0 20px 50px rgba(0,0,0,0.15);">
+        <div style="background-color: white; color: #0f172a; width: 100%;">
+          <!-- Header Image -->
+          <div style="width: 100%; height: 350px; margin-bottom: 30px; border-radius: 24px; overflow: hidden; background: url('${recipe.strMealThumb}') center/cover no-repeat;">
           </div>
 
-          <div style="padding: 0 10px;">
-            <h1 style="font-family: Helvetica, Arial, sans-serif; font-size: 48px; font-weight: 900; margin: 0 0 15px 0; color: #0f172a; line-height: 1.1; letter-spacing: -1px;">${recipe.strMeal}</h1>
+          <div style="padding: 0 5px;">
+            <h1 style="font-family: 'Poppins', Helvetica, sans-serif; font-size: 42px; font-weight: 800; margin: 0 0 10px 0; color: #0f172a; letter-spacing: -1px;">${recipe.strMeal}</h1>
             
-            <div style="display: flex; gap: 12px; margin-bottom: 50px;">
-              <span style="font-family: Helvetica, Arial, sans-serif; background-color: #f97316; color: white; padding: 6px 18px; border-radius: 100px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">${recipe.strCategory}</span>
-              <span style="font-family: Helvetica, Arial, sans-serif; background-color: #f1f5f9; color: #64748b; padding: 6px 18px; border-radius: 100px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">${recipe.strArea}</span>
+            <div style="display: flex; gap: 10px; margin-bottom: 40px;">
+              <span style="font-family: 'Inter', Helvetica, sans-serif; background-color: #f97316; color: white; padding: 5px 15px; border-radius: 100px; font-size: 12px; font-weight: 700; text-transform: uppercase;">${recipe.strCategory}</span>
+              <span style="font-family: 'Inter', Helvetica, sans-serif; background-color: #f1f5f9; color: #64748b; padding: 5px 15px; border-radius: 100px; font-size: 12px; font-weight: 700; text-transform: uppercase;">${recipe.strArea}</span>
+              <span style="font-family: 'Inter', Helvetica, sans-serif; background-color: #fef2f2; color: #ef4444; padding: 5px 15px; border-radius: 100px; font-size: 12px; font-weight: 700; text-transform: uppercase;">${stats.calories} Kcal</span>
             </div>
             
-            <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
-              <tr>
-                <td style="width: 32%; vertical-align: top; padding-right: 45px; border-right: 1px solid #f1f5f9;">
-                  <h2 style="font-family: Helvetica, Arial, sans-serif; font-size: 24px; font-weight: 800; margin-bottom: 30px; color: #0f172a; display: flex; align-items: center;">
-                    Ingredients
-                  </h2>
-                  ${ingredientsHTML}
-                </td>
-                <td style="width: 68%; vertical-align: top; padding-left: 45px;">
-                  <h2 style="font-family: Helvetica, Arial, sans-serif; font-size: 24px; font-weight: 800; margin-bottom: 30px; color: #0f172a;">
-                    Cooking Instructions
-                  </h2>
-                  ${instructionsHTML}
-                </td>
-              </tr>
-            </table>
+            <div style="display: flex; gap: 40px;">
+              <div style="width: 35%; flex-shrink: 0;">
+                <h2 style="font-family: 'Poppins', Helvetica, sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 20px; color: #0f172a;">Ingredients</h2>
+                ${ingredientsHTML}
+              </div>
+              <div style="width: 65%;">
+                <h2 style="font-family: 'Poppins', Helvetica, sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 20px; color: #0f172a;">Instructions</h2>
+                ${instructionsHTML}
+              </div>
+            </div>
 
             ${aiHTML}
             
-            <div style="margin-top: 80px; padding: 30px 0; border-top: 2px solid #f1f5f9; text-align: center;">
-              <p style="font-family: Helvetica, Arial, sans-serif; color: #94a3b8; font-size: 14px; font-weight: 600; margin: 0;">
-                Created with <span style="color: #f97316;">AI Recipe Generator</span>
+            <div style="margin-top: 60px; padding: 20px 0; border-top: 1px solid #f1f5f9; text-align: center;">
+              <p style="font-family: 'Inter', Helvetica, sans-serif; color: #94a3b8; font-size: 12px; font-weight: 500;">
+                Generated by AI Recipe Generator • ${new Date().toLocaleDateString()}
               </p>
             </div>
           </div>
@@ -173,9 +169,11 @@ export const RecipeModal = ({ recipe, onClose, onAddIngredientsToShoppingList }:
       const canvas = await html2canvas(printContainer, {
         scale: 2,
         useCORS: true,
-        allowTaint: true,
+        allowTaint: false,
         backgroundColor: '#ffffff',
+        windowWidth: 800
       });
+
 
       const imgData = canvas.toDataURL('image/jpeg', 1.0);
       const pdf = new jsPDF({
@@ -242,10 +240,17 @@ export const RecipeModal = ({ recipe, onClose, onAddIngredientsToShoppingList }:
           </div>
 
           <div className="flex flex-col md:row h-full max-h-[90vh] md:flex-row" ref={modalContentRef}>
-            <div className="md:w-1/2 h-80 md:h-auto relative">
-              <img src={recipe.strMealThumb} alt={recipe.strMeal} className="w-full h-full object-cover" crossOrigin="anonymous" />
+            <div className="md:w-1/2 h-80 md:h-auto relative bg-slate-200 dark:bg-slate-800">
+              <img 
+                src={optimizeImage(recipe.strMealThumb, 800, 85)} 
+                alt={recipe.strMeal} 
+                onLoad={() => setIsImageLoaded(true)}
+                className={`w-full h-full object-cover transition-opacity duration-700 ${isImageLoaded ? 'opacity-100' : 'opacity-0'}`} 
+                crossOrigin="anonymous" 
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
               <div className="absolute bottom-10 left-10 text-white">
+
                 <span className="px-4 py-1 rounded-full bg-secondary-light/90 text-sm font-bold uppercase mb-3 inline-block">
                   {recipe.strCategory}
                 </span>
@@ -253,13 +258,14 @@ export const RecipeModal = ({ recipe, onClose, onAddIngredientsToShoppingList }:
                 <div className="flex items-center gap-6 mt-2 text-slate-200">
                   <div className="flex items-center gap-2">
                     <ClockIcon className="w-5 h-5" />
-                    <span className="text-sm font-medium">45 mins</span>
+                    <span className="text-sm font-medium">{stats.time} mins</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <FireIcon className="w-5 h-5" />
-                    <span className="text-sm font-medium">520 kcal</span>
+                    <span className="text-sm font-medium">{stats.calories} kcal</span>
                   </div>
                 </div>
+
               </div>
             </div>
 

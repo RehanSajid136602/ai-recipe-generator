@@ -26,9 +26,14 @@ export default async function handler(req: Request) {
 
     const genAI = new GoogleGenerativeAI(API_KEY);
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-flash-preview",
+      systemInstruction: "You are an expert master chef and nutritionist. Your goal is to provide accurate, safe, and delicious recipe variations. You must NOT hallucinate ingredients that don't exist or provide dangerous cooking advice. Always base your response on the provided original recipe while accurately fulfilling the user's specific request (e.g., making it vegan, keto, etc.). If a request is impossible or unsafe, explain why briefly in the tips section.",
       generationConfig: {
+        temperature: 0.2,
+        topP: 0.8,
+        topK: 40,
         responseMimeType: "application/json",
+
         responseSchema: {
           type: SchemaType.OBJECT,
           properties: {
@@ -52,13 +57,23 @@ export default async function handler(req: Request) {
     });
 
     const prompt = `
+      CONTEXT:
       Original Recipe: ${originalRecipe}
-      Ingredients: ${ingredients}
-      User Request: ${request}
+      Standard Ingredients: ${ingredients}
+      User Customization Request: ${request}
       
-      Update this recipe. You MUST return the data in the specified JSON format.
-      The instructions MUST be an array of strings, where each string is ONE step.
+      TASK:
+      1. Modify the original recipe to satisfy the User Customization Request.
+      2. Ensure all replacement ingredients are standard, culinary-accurate, and appropriate for the requested diet (e.g., if vegan, no honey or eggs).
+      3. Maintain the core essence of the dish while making the requested changes.
+      4. Provide 3 specific 'Chef Tips' for success with this specific variation.
+      
+      OUTPUT REQUIREMENTS:
+      - JSON format only.
+      - 'instructions' must be a logical, step-by-step array.
+      - NO hallucinations. Only include ingredients that are necessary and realistic.
     `;
+
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
