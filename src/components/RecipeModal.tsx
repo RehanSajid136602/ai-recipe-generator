@@ -4,9 +4,6 @@ import { Recipe, Ingredient, AIPromptResponse } from '../types';
 import { getIngredients, formatInstructions, estimateRecipeStats, optimizeImage } from '../utils/api';
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { generateRecipeVariation, analyzeRecipeStats } from '../utils/gemini';
-import html2canvas from 'html2canvas';
-
-import jsPDF from 'jspdf';
 
 interface RecipeModalProps {
   recipe: Recipe | null;
@@ -69,6 +66,10 @@ export const RecipeModal = ({ recipe, onClose, onAddIngredientsToShoppingList }:
     setIsDownloading(true);
 
     try {
+      // Dynamic import of heavy libraries
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
       // Create a hidden container for the PDF layout
       const printContainer = document.createElement('div');
       printContainer.style.position = 'fixed';

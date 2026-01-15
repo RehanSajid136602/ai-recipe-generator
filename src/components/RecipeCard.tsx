@@ -38,6 +38,7 @@ export const RecipeCard = ({ recipe, onClick, isFavorite, onToggleFavorite }: Re
           animate={{ opacity: isLoaded ? 1 : 0 }}
           transition={{ duration: 0.5 }}
           onLoad={() => setIsLoaded(true)}
+          onError={() => setIsLoaded(true)}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
         />
       </div>

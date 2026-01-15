@@ -24,10 +24,23 @@ export const generateRecipeVariation = async (
     return "Error: GEMINI_API_KEY is missing. Please add it to your .env file.";
   }
 
+  const recipePrompt = `
+    CONTEXT:
+    Original Recipe: ${originalRecipe}
+    Standard Ingredients: ${ingredients}
+    User Customization Request: ${request}
+
+    TASK:
+    1. Modify the original recipe to satisfy the User Customization Request.
+    2. Ensure all replacement ingredients are standard and culinary-accurate.
+    3. Maintain the core essence of the dish.
+    4. Provide 3 specific 'Chef Tips' for success.
+  `;
+
   try {
     const genAI = new GoogleGenerativeAI(API_KEY);
     const model = genAI.getGenerativeModel({
-      model: "gemini-3-flash-preview", 
+      model: "gemini-1.5-flash",
       systemInstruction: "You are an expert master chef and nutritionist. Provide accurate, safe, and delicious recipe variations. No hallucinations. Base responses on the provided original recipe.",
       generationConfig: {
         temperature: 0.2,
@@ -56,20 +69,7 @@ export const generateRecipeVariation = async (
       }
     });
 
-    const prompt = `
-      CONTEXT:
-      Original Recipe: ${originalRecipe}
-      Standard Ingredients: ${ingredients}
-      User Customization Request: ${request}
-      
-      TASK:
-      1. Modify the original recipe to satisfy the User Customization Request.
-      2. Ensure all replacement ingredients are standard and culinary-accurate.
-      3. Maintain the core essence of the dish.
-      4. Provide 3 specific 'Chef Tips' for success.
-    `;
-
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent(recipePrompt);
     const response = await result.response;
     const text = response.text();
     
@@ -86,7 +86,7 @@ export const generateRecipeVariation = async (
       try {
         const fallbackGenAI = new GoogleGenerativeAI(API_KEY);
         const fallbackModel = fallbackGenAI.getGenerativeModel({
-          model: "gemini-2.5-flash",
+          model: "gemini-1.5-flash",
           systemInstruction: "You are an expert master chef and nutritionist. Provide accurate, safe, and delicious recipe variations. No hallucinations. Base responses on the provided original recipe.",
           generationConfig: {
             temperature: 0.2,
@@ -96,7 +96,7 @@ export const generateRecipeVariation = async (
           }
         });
 
-        const fallbackResult = await fallbackModel.generateContent(prompt);
+        const fallbackResult = await fallbackModel.generateContent(recipePrompt);
         const fallbackText = (await fallbackResult.response).text();
         return JSON.parse(fallbackText) as AIPromptResponse;
       } catch (fallbackError: any) {
@@ -186,8 +186,8 @@ export const generateRecipesByIngredients = async (ingredients: string): Promise
       }
     });
 
-    const prompt = `
-      When a user provides a list of ingredients, generate a set of 3-5 recipes that can be made with those ingredients. 
+    const generatorPrompt = `
+      When a user provides a list of ingredients, generate a set of 3-5 recipes that can be made with those ingredients.
       USER INGREDIENTS: ${ingredients}
 
       For each recipe, provide:
@@ -196,15 +196,15 @@ export const generateRecipesByIngredients = async (ingredients: string): Promise
       3. Step-by-step cooking instructions (clear and concise)
       4. Estimated cooking time and difficulty level
       5. Keep the style consistent with a clean, modern UI — short paragraphs, no long blocks of text, and easy-to-read formatting.
-      
+
       Do not add extra commentary or unrelated text.
     `;
 
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent(generatorPrompt);
     const text = (await result.response).text();
     return JSON.parse(text) as AIPromptResponse[];
   } catch (error: any) {
     console.error("Generator Error:", error);
-    return `Error: ${errorToString(error)}`;
+    return `Error: ${stringifyError(error)}`;
   }
 };

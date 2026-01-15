@@ -103,10 +103,9 @@ export const estimateRecipeStats = (recipe: Recipe) => {
   };
 };
 
-export const optimizeImage = (url: string, width: number = 400, quality: number = 80) => {
+export const optimizeImage = (url: string, _width: number = 400, _quality: number = 80) => {
   if (!url) return '';
-  // Use wsrv.nl as a free, fast image proxy and CDN
-  // It resizes, compresses, and converts to WebP/Avif automatically
-  return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${width}&q=${quality}&output=webp`;
+  // Return original URL directly
+  return url;
 };
 

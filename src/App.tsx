@@ -33,6 +33,7 @@ function App() {
     email: 'sajidnadeem2020@gmail.com'
   });
   const [view, setView] = useState<'discover' | 'favorites' | 'shopping' | 'profile' | 'generator'>('discover');
+  const [visibleRecipesCount, setVisibleRecipesCount] = useState(12);
 
 
   useEffect(() => {
@@ -56,6 +57,7 @@ function App() {
         setCategories(cats);
         localStorage.setItem('categories-cache', JSON.stringify(cats));
         setRecipes(initialRecipes);
+        setVisibleRecipesCount(12);
       } catch (error) {
         console.error("Initialization failed:", error);
       } finally {
@@ -74,6 +76,7 @@ function App() {
     const results = await fetchRecipesByName(search);
     setRecipes(results);
     setSelectedCategory('All');
+    setVisibleRecipesCount(12);
     setLoading(false);
   };
 
@@ -92,12 +95,13 @@ function App() {
     setLoading(true);
     setSelectedCategory(cat);
     setView('discover');
-    
+
     try {
-      const results = cat === 'All' 
-        ? await fetchRecipesByName('') 
+      const results = cat === 'All'
+        ? await fetchRecipesByName('')
         : await fetchRecipesByCategory(cat);
       setRecipes(results);
+      setVisibleRecipesCount(12);
     } catch (error) {
       console.error("Category fetch failed:", error);
     } finally {
@@ -150,6 +154,10 @@ function App() {
     if (view === 'favorites') return favorites;
     return recipes;
   }, [view, recipes, favorites]);
+
+  const visibleRecipes = useMemo(() => {
+    return filteredRecipes.slice(0, visibleRecipesCount);
+  }, [filteredRecipes, visibleRecipesCount]);
 
   return (
     <div className="min-h-screen">
@@ -400,31 +408,43 @@ function App() {
         </AnimatePresence>
 
         {view !== 'shopping' && view !== 'profile' && view !== 'generator' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+              {loading ? (
+                Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
+              ) : visibleRecipes.length > 0 ? (
+                visibleRecipes.map((recipe) => (
+                  <RecipeCard
+                    key={recipe.idMeal}
+                    recipe={recipe}
+                    onClick={() => handleRecipeClick(recipe)}
+                    isFavorite={!!favorites.find(r => r.idMeal === recipe.idMeal)}
+                    onToggleFavorite={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(recipe);
+                    }}
+                  />
+                ))
+              ) : (
+                <div className="col-span-full text-center py-20">
+                  <div className="text-6xl mb-4">🍳</div>
+                  <h3 className="text-2xl font-bold font-poppins">No recipes found</h3>
+                  <p className="text-slate-500 mt-2">Try searching for something else!</p>
+                </div>
+              )}
+            </div>
 
-            {loading ? (
-              Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)
-            ) : filteredRecipes.length > 0 ? (
-              filteredRecipes.map((recipe) => (
-                <RecipeCard
-                  key={recipe.idMeal}
-                  recipe={recipe}
-                  onClick={() => handleRecipeClick(recipe)}
-                  isFavorite={!!favorites.find(r => r.idMeal === recipe.idMeal)}
-                  onToggleFavorite={(e) => {
-                    e.stopPropagation();
-                    toggleFavorite(recipe);
-                  }}
-                />
-              ))
-            ) : (
-              <div className="col-span-full text-center py-20">
-                <div className="text-6xl mb-4">🍳</div>
-                <h3 className="text-2xl font-bold font-poppins">No recipes found</h3>
-                <p className="text-slate-500 mt-2">Try searching for something else!</p>
+            {!loading && filteredRecipes.length > visibleRecipesCount && (
+              <div className="text-center mt-12">
+                <button
+                  onClick={() => setVisibleRecipesCount(prev => prev + 12)}
+                  className="btn btn-primary px-8 py-4 text-lg"
+                >
+                  Load More Recipes
+                </button>
               </div>
             )}
-          </div>
+          </>
         )}
       </main>
 
