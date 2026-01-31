@@ -40,7 +40,7 @@ export const generateRecipeVariation = async (
   try {
     const genAI = new GoogleGenerativeAI(API_KEY);
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       systemInstruction: "You are an expert master chef and nutritionist. Provide accurate, safe, and delicious recipe variations. No hallucinations. Base responses on the provided original recipe.",
       generationConfig: {
         temperature: 0.2,
@@ -76,7 +76,7 @@ export const generateRecipeVariation = async (
     return JSON.parse(text) as AIPromptResponse;
   } catch (error: any) {
     console.error("Gemini Error:", error);
-    // If quota is exceeded, fallback to gemini-2.5-flash
+    // If quota is exceeded, fallback to gemini-3-flash-preview
     const isQuotaError =
       error?.statusCode === 429 ||
       error?.status === 429 ||
@@ -86,7 +86,7 @@ export const generateRecipeVariation = async (
       try {
         const fallbackGenAI = new GoogleGenerativeAI(API_KEY);
         const fallbackModel = fallbackGenAI.getGenerativeModel({
-          model: "gemini-1.5-flash",
+          model: "gemini-3-flash-preview",
           systemInstruction: "You are an expert master chef and nutritionist. Provide accurate, safe, and delicious recipe variations. No hallucinations. Base responses on the provided original recipe.",
           generationConfig: {
             temperature: 0.2,
